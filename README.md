@@ -8,6 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
+| v1.1.3 | [`v1.1.3`](https://github.com/chainguard-actions/michidk-winget-updater/tree/v1.1.3) | [`3975d95`](https://github.com/michidk/winget-updater/commit/3975d9569bd4a95fbb03c3db8dd88df138eb6e1a) |
 | v1.1.7 | [`v1.1.7`](https://github.com/chainguard-actions/michidk-winget-updater/tree/v1.1.7) | [`d2e9ce3`](https://github.com/michidk/winget-updater/commit/d2e9ce38251edda66e37724af400506240502d35) |
 
 ## Privacy
