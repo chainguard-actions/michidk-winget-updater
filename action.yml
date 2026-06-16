@@ -1,0 +1,116 @@
+name: 'WinGet Updater'
+description: 'Publish updates of your application to Windows Package Manager automatically.'
+branding:
+  color: blue
+  icon: upload-cloud
+inputs:
+  komac-version:
+    description: 'Which Komac version to use.'
+    required: false
+    default: '2.15.0'
+  komac-token:
+    description: 'The GitHub token to use for authentication.'
+    required: true
+  identifier:
+    description: 'The PackageIdentifier of the package (case-sensitive).'
+    required: true
+  repo:
+    description: 'The GitHub repository to check for the latest release.'
+    required: true
+  url:
+    description: 'The URL(s) to the latest release.'
+    required: true
+  version:
+    description: 'Override the auto-detected version.'
+    required: false
+  custom-fork-owner:
+    description: 'Custom winget-pkgs fork owner'
+    required: false
+  ghes-token:
+    description: 'GHES authorization token'
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Check if Package Exists in winget-pkgs Repository
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      with:
+        script: |
+          const pkgid = "${{ inputs.identifier }}";
+          const url = `https://github.com/microsoft/winget-pkgs/tree/master/manifests/${pkgid.charAt(0).toLowerCase()}/${pkgid.replaceAll('.', '/')}`;
+          const headers = { method: 'HEAD' };
+
+          const res = await fetch(url, headers);
+
+          if (!res.ok) {
+            core.setFailed(`Package ${pkgid} does not exist in the winget-pkgs repository. Please add at least one version of the package before using this action.`);
+            process.exit(1);
+          }
+    - name: Detect Latest Release
+      id: latest_release
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      with:
+        script: |
+          const [owner, repo] = '${{ inputs.repo }}'.split('/');
+          const apiUrl = '${{ github.api_url }}';
+          const ghesToken = '${{ inputs.ghes-token }}'
+          try {
+            const data = apiUrl !== 'https://api.github.com'
+              ? await (async () => {
+                  const url = `${apiUrl}/repos/${owner}/${repo}/releases/latest`;
+                  const response = await fetch(url, ghesToken !== ''
+                    ? { headers: { 'Authorization': `token ${ghesToken}` } }
+                    : {}
+                  );
+                  return await response.json();
+                })()
+              : await (async () => {
+                  const { data } = await github.rest.repos.getLatestRelease({ owner, repo });
+                  return data;
+                })();
+            const tagName = data.tag_name.startsWith('v') ? data.tag_name.substring(1) : data.tag_name;
+            return tagName;
+          } catch (error) {
+            core.setFailed(`Failed to get latest release for repo: ${owner}/${repo}`);
+            process.exit(1);
+          }
+    - name: Compose URL
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version || steps.latest_release.outputs.result }}
+        INPUT_URL: ${{ inputs.url }}
+      run: |
+        VERSION=$(printf '%s' "$INPUT_VERSION" | tr -d '\n\r')
+        URL=$(printf '%s' "$INPUT_URL" | tr -d '\n\r')
+        FINAL_URL=$(echo "$URL" | sed "s/{VERSION}/$VERSION/g")
+        safe_final_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
+        safe_version=$(printf '%s' "$VERSION" | tr -d '\n\r')
+        echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
+        echo "VERSION=$safe_version" >> "$GITHUB_ENV"
+        echo "Final URL: $safe_final_url"
+        echo "Version: $safe_version"
+    - name: Run Komac
+      uses: michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f # v2
+      with:
+        komac-version: ${{ inputs.komac-version }}
+        custom-fork-owner: ${{ inputs.custom-fork-owner }}
+        custom-tool: WinGet Updater
+        custom-tool-url: "https://github.com/michidk/winget-updater"
+        args: update ${{ inputs.identifier }} --version $VERSION --urls $FINAL_URL --submit --token ${{ inputs.komac-token }}
