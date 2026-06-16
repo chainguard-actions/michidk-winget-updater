@@ -1,0 +1,31 @@
+name: Test invalid package identifier fails
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action with nonexistent package
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: ThisPackage.DoesNotExistInWinget99999
+          repo: microsoft/vscode
+          url: "https://example.com/releases/{VERSION}/app.exe"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert action failed due to invalid package
+        run: |
+          OUTCOME="${{ steps.action.outcome }}"
+          echo "Action outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed for nonexistent package"
+          else
+            echo "FAIL: expected action to fail for nonexistent package, got: $OUTCOME"
+            exit 1
+          fi
