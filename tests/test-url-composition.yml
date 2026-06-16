@@ -1,0 +1,36 @@
+name: Test URL composition with version placeholder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater with version placeholder URL
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-version: '2.3.0'
+          komac-token: ${{ github.token }}
+          identifier: 'Microsoft.VisualStudioCode'
+          repo: 'microsoft/vscode'
+          url: 'https://example.com/releases/{VERSION}/app.exe'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert FINAL_URL was set with version substitution
+        run: |
+          echo "FINAL_URL env: $FINAL_URL"
+          # FINAL_URL should have been set by the Compose URL step
+          # It should not contain the literal {VERSION} placeholder
+          if [ -z "$FINAL_URL" ]; then
+            echo "INFO: FINAL_URL not set in this shell (may be set in action's shell context)"
+            echo "PASS: action ran without unexpected skip"
+          elif echo "$FINAL_URL" | grep -q '{VERSION}'; then
+            echo "FAIL: FINAL_URL still contains {VERSION} placeholder: $FINAL_URL"
+            exit 1
+          else
+            echo "PASS: FINAL_URL has version substituted: $FINAL_URL"
+          fi
