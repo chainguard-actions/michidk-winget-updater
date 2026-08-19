@@ -1,12 +1,9 @@
-name: Test basic usage
+name: Test basic usage - valid package and repo
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_EVENT_NAME: push
-      GITHUB_REF: refs/heads/main
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -16,26 +13,26 @@ jobs:
         continue-on-error: true
         with:
           komac-version: '2.0.4'
-          komac-token: 'dummy-token-for-testing'
+          komac-token: ${{ github.token }}
           identifier: 'Microsoft.VisualStudioCode'
           repo: 'microsoft/vscode'
           url: 'https://update.code.visualstudio.com/{VERSION}/win32-x64-user/stable'
 
-      - name: Assert action ran (may fail at Komac step due to dummy token)
+      - name: Assert FINAL_URL is set and contains a version
         run: |
-          echo "Action outcome: ${{ steps.action.outcome }}"
-          # The action is expected to either succeed or fail at the Komac step
-          # (which has continue-on-error: true in the action itself).
-          # We just verify the action was invoked and reached at least the URL composition step.
+          echo "FINAL_URL: $FINAL_URL"
           if [ -z "$FINAL_URL" ]; then
-            echo "INFO: FINAL_URL env var not set (action may have failed before URL composition)"
-          else
-            echo "FINAL_URL: $FINAL_URL"
-            if echo "$FINAL_URL" | grep -q "https://update.code.visualstudio.com/"; then
-              echo "PASS: URL was composed correctly"
-            else
-              echo "FAIL: URL does not contain expected prefix"
-              exit 1
-            fi
+            echo "FAIL: FINAL_URL env var was not set"
+            exit 1
           fi
-          echo "PASS: Action was invoked successfully"
+          # Should not contain the literal {VERSION} placeholder
+          if echo "$FINAL_URL" | grep -q '{VERSION}'; then
+            echo "FAIL: FINAL_URL still contains {VERSION} placeholder: $FINAL_URL"
+            exit 1
+          fi
+          # Should be a valid https URL
+          if ! echo "$FINAL_URL" | grep -q '^https://'; then
+            echo "FAIL: FINAL_URL does not start with https://: $FINAL_URL"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL=$FINAL_URL"

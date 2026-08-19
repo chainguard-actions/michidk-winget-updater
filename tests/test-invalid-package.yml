@@ -1,12 +1,9 @@
-name: Test invalid package identifier
+name: Test invalid package identifier - should fail
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_EVENT_NAME: push
-      GITHUB_REF: refs/heads/main
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -16,18 +13,18 @@ jobs:
         continue-on-error: true
         with:
           komac-version: '2.0.4'
-          komac-token: 'dummy-token-for-testing'
-          identifier: 'NonExistent.PackageThatDoesNotExist99999'
+          komac-token: ${{ github.token }}
+          identifier: 'ThisPackage.DoesNotExistInWinget99999'
           repo: 'microsoft/vscode'
           url: 'https://example.com/{VERSION}/installer.exe'
 
       - name: Assert action failed for non-existent package
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
         run: |
-          echo "Action outcome: ${{ steps.action.outcome }}"
-          # The action should fail because the package does not exist in winget-pkgs
-          if [ "${{ steps.action.outcome }}" = "failure" ]; then
-            echo "PASS: Action correctly failed for non-existent package identifier"
-          else
-            echo "INFO: Action did not fail as expected (outcome: ${{ steps.action.outcome }})"
-            echo "PASS: Action completed (package existence check may have different behavior)"
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected action to fail for non-existent package, but outcome was: $OUTCOME"
+            exit 1
           fi
+          echo "PASS: action correctly failed for non-existent package"

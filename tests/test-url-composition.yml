@@ -1,0 +1,44 @@
+name: Test URL composition - VERSION placeholder replacement
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action to test URL composition
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-version: '2.0.4'
+          komac-token: ${{ github.token }}
+          identifier: 'Git.Git'
+          repo: 'git-for-windows/git'
+          url: 'https://github.com/git-for-windows/git/releases/download/v{VERSION}.windows.1/Git-{VERSION}-64-bit.exe'
+
+      - name: Assert FINAL_URL has VERSION placeholder replaced
+        run: |
+          echo "FINAL_URL: $FINAL_URL"
+          # FINAL_URL must be set
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL env var was not set - action may have failed before URL composition"
+            exit 1
+          fi
+          # Must not contain the literal {VERSION} placeholder
+          if echo "$FINAL_URL" | grep -q '{VERSION}'; then
+            echo "FAIL: FINAL_URL still contains {VERSION} placeholder: $FINAL_URL"
+            exit 1
+          fi
+          # Must start with https://
+          if ! echo "$FINAL_URL" | grep -q '^https://'; then
+            echo "FAIL: FINAL_URL does not start with https://: $FINAL_URL"
+            exit 1
+          fi
+          # Must contain github.com/git-for-windows (URL structure preserved)
+          if ! echo "$FINAL_URL" | grep -q 'github.com/git-for-windows'; then
+            echo "FAIL: FINAL_URL does not contain expected base URL: $FINAL_URL"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL correctly composed: $FINAL_URL"

@@ -45,11 +45,9 @@ runs:
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Package Exists in winget-pkgs Repository
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-      env:
-        INPUT_IDENTIFIER: ${{ inputs.identifier }}
       with:
         script: |
-          const pkgid = process.env.INPUT_IDENTIFIER;
+          const pkgid = "${{ inputs.identifier }}";
           const url = `https://github.com/microsoft/winget-pkgs/tree/master/manifests/${pkgid.charAt(0).toLowerCase()}/${pkgid.replaceAll('.', '/')}`;
           const headers = { method: 'HEAD' };
 
@@ -62,11 +60,9 @@ runs:
     - name: Detect Latest Release
       id: latest_release
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-      env:
-        INPUT_REPO: ${{ inputs.repo }}
       with:
         script: |
-          const [owner, repo] = process.env.INPUT_REPO.split('/');
+          const [owner, repo] = '${{ inputs.repo }}'.split('/');
           try {
             const { data } = await github.rest.repos.getLatestRelease({ owner, repo });
             const tagName = data.tag_name.startsWith('v') ? data.tag_name.substring(1) : data.tag_name;
@@ -78,16 +74,14 @@ runs:
     - name: Compose URL
       shell: bash
       env:
-        LATEST_VERSION: ${{ steps.latest_release.outputs.result }}
-        INPUT_URL: ${{ inputs.url }}
+        VERSION: ${{ steps.latest_release.outputs.result }}
+        URL: ${{ inputs.url }}
       run: |
-        VERSION=$(printf '%s' "$LATEST_VERSION" | tr -d '\n\r')
-        URL=$(printf '%s' "$INPUT_URL" | tr -d '\n\r')
-        FINAL_URL=$(echo "$URL" | sed "s/{VERSION}/$VERSION/g")
-        safe_final_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
-        echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
+        FINAL_URL="${URL//\{VERSION\}/$VERSION}"
+        safe_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
+        echo "FINAL_URL=$safe_url" >> "$GITHUB_ENV"
         echo "Detected latest Version: $VERSION"
-        echo "Final URL: $safe_final_url"
+        echo "Final URL: $safe_url"
     - name: Run Komac
       uses: michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f # v2
       continue-on-error: true
