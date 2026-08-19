@@ -1,0 +1,36 @@
+name: Test URL composition with version override
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Run the action with a real package that exists in winget-pkgs and a version override.
+      # The action will fail at the Komac step (no submit permissions), but we can verify
+      # the URL composition step ran correctly by checking the GITHUB_ENV output.
+      - name: Run action with version override (expect failure at Komac step)
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: "Microsoft.VisualStudioCode"
+          repo: "microsoft/vscode"
+          url: "https://example.com/download/{VERSION}/VSCodeSetup.exe"
+          version: "1.99.0"
+
+      - name: Assert URL was composed correctly
+        run: |
+          echo "FINAL_URL=$FINAL_URL"
+          echo "VERSION=$VERSION"
+          if [ "$VERSION" != "1.99.0" ]; then
+            echo "FAIL: expected VERSION=1.99.0, got: $VERSION"
+            exit 1
+          fi
+          if [ "$FINAL_URL" != "https://example.com/download/1.99.0/VSCodeSetup.exe" ]; then
+            echo "FAIL: expected FINAL_URL=https://example.com/download/1.99.0/VSCodeSetup.exe, got: $FINAL_URL"
+            exit 1
+          fi
+          echo "PASS: URL composed correctly with version substitution"

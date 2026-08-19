@@ -1,0 +1,41 @@
+name: Test latest release detection
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Run the action without a version override so it auto-detects the latest release.
+      # The action will fail at the Komac step (no submit permissions), but we can verify
+      # the release detection step ran correctly by checking the GITHUB_ENV output.
+      - name: Run action without version override (auto-detect latest release)
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: "Microsoft.VisualStudioCode"
+          repo: "microsoft/vscode"
+          url: "https://example.com/download/{VERSION}/VSCodeSetup.exe"
+
+      - name: Assert version was auto-detected (non-empty)
+        run: |
+          echo "VERSION=$VERSION"
+          echo "FINAL_URL=$FINAL_URL"
+          if [ -z "$VERSION" ]; then
+            echo "FAIL: expected VERSION to be auto-detected but it is empty"
+            exit 1
+          fi
+          # Version should look like a semver (digits and dots), not start with 'v'
+          if echo "$VERSION" | grep -qE '^v'; then
+            echo "FAIL: expected VERSION without leading 'v', got: $VERSION"
+            exit 1
+          fi
+          # FINAL_URL should contain the version
+          if ! echo "$FINAL_URL" | grep -qF "$VERSION"; then
+            echo "FAIL: expected FINAL_URL to contain VERSION ($VERSION), got: $FINAL_URL"
+            exit 1
+          fi
+          echo "PASS: version auto-detected as $VERSION and URL composed correctly"

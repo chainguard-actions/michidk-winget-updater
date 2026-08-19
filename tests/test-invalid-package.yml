@@ -7,18 +7,18 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Run action with invalid package identifier (expect failure)
+      - name: Run action with non-existent package (expect failure)
         id: action
         uses: .
         continue-on-error: true
         with:
           komac-token: ${{ github.token }}
-          identifier: "ThisPackage.DoesNotExistInWingetPkgs.XYZ123"
-          repo: "microsoft/winget-pkgs"
-          url: "https://example.com/release/{VERSION}.zip"
+          identifier: "ThisPackage.DoesNotExistAtAll.XYZ123"
+          repo: "actions/checkout"
+          url: "https://example.com/download/{VERSION}/app.exe"
           version: "1.0.0"
 
-      - name: Assert action failed due to invalid package
+      - name: Assert action failed for non-existent package
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
