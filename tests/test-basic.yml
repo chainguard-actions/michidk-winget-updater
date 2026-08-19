@@ -1,4 +1,4 @@
-name: Test basic usage - valid package
+name: Test basic usage - known package
 on:
   workflow_dispatch:
 jobs:
@@ -13,23 +13,23 @@ jobs:
         continue-on-error: true
         with:
           komac-token: ${{ github.token }}
-          identifier: Microsoft.VisualStudioCode
-          repo: microsoft/vscode
-          url: "https://update.code.visualstudio.com/{VERSION}/win32-x64-user/stable"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          identifier: Microsoft.PowerShell
+          repo: PowerShell/PowerShell
+          url: "https://github.com/PowerShell/PowerShell/releases/download/v{VERSION}/PowerShell-{VERSION}-win-x64.msi"
 
-      - name: Assert action completed (package exists check and release detection ran)
+      - name: Assert action ran (package exists check and release detection passed)
         run: |
-          echo "Action outcome: ${{ steps.action.outcome }}"
-          # The action should succeed through the release detection step.
-          # The Komac step has continue-on-error so it won't block.
-          # We accept 'success' or 'failure' (if Komac fails with bad token),
-          # but not a hard crash before the Komac step.
-          OUTCOME="${{ steps.action.outcome }}"
-          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action ran to completion (outcome=$OUTCOME)"
-          else
-            echo "FAIL: unexpected outcome: $OUTCOME"
+          # The action should have at least progressed past the package-existence check
+          # and the release detection step. The Komac step has continue-on-error: true
+          # so even if it fails (no real winget submit token), the job should not fail.
+          # We verify the FINAL_URL env var was set by the Compose URL step.
+          echo "FINAL_URL: $FINAL_URL"
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL was not set — action did not reach the Compose URL step"
             exit 1
           fi
+          if echo "$FINAL_URL" | grep -q "{VERSION}"; then
+            echo "FAIL: FINAL_URL still contains {VERSION} placeholder — substitution failed"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL is set and version was substituted: $FINAL_URL"

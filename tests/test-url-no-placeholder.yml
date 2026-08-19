@@ -1,0 +1,31 @@
+name: Test URL without VERSION placeholder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action with static URL (no placeholder)
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: Microsoft.PowerShell
+          repo: PowerShell/PowerShell
+          url: "https://example.com/download/app-static.msi"
+
+      - name: Assert FINAL_URL equals the static URL unchanged
+        run: |
+          echo "FINAL_URL: $FINAL_URL"
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL was not set — action did not reach the Compose URL step"
+            exit 1
+          fi
+          if [ "$FINAL_URL" != "https://example.com/download/app-static.msi" ]; then
+            echo "FAIL: expected static URL to be unchanged, got: $FINAL_URL"
+            exit 1
+          fi
+          echo "PASS: static URL passed through unchanged: $FINAL_URL"

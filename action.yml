@@ -1,5 +1,5 @@
 name: 'WinGet Updater'
-description: 'Publish updates of your application to Windows Package Manager automatically.'
+description: 'Publish updates of your application to WinGet Package Manager automatically.'
 branding:
   color: blue
   icon: upload-cloud
@@ -81,13 +81,11 @@ runs:
         VERSION: ${{ steps.latest_release.outputs.result }}
         URL: ${{ inputs.url }}
       run: |
-        safe_version=$(printf '%s' "$VERSION" | tr -d '\n\r')
-        safe_url=$(printf '%s' "$URL" | tr -d '\n\r')
-        FINAL_URL=$(echo "$safe_url" | sed "s/{VERSION}/$safe_version/g")
-        safe_final_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
-        echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
-        echo "Detected latest Version: $safe_version"
-        echo "Final URL: $safe_final_url"
+        FINAL_URL="${URL//\{VERSION\}/$VERSION}"
+        safe_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
+        echo "FINAL_URL=$safe_url" >> "$GITHUB_ENV"
+        echo "Detected latest Version: $VERSION"
+        echo "Final URL: $FINAL_URL"
     - name: Run Komac
       uses: michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f # v2
       continue-on-error: true
