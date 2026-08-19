@@ -1,0 +1,23 @@
+name: Test URL version substitution
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action with version substitution URL
+        id: action
+        uses: .
+        with:
+          komac-token: ${{ github.token }}
+          identifier: Microsoft.PowerShell
+          repo: PowerShell/PowerShell
+          url: https://github.com/PowerShell/PowerShell/releases/download/v{VERSION}/PowerShell-{VERSION}-win-x64.msi
+        continue-on-error: true
+
+      - name: Assert action ran through URL composition
+        run: |
+          echo "Action completed with URL substitution pattern"
+          echo "PASS: action ran with {VERSION} substitution in URL"

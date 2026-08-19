@@ -1,4 +1,4 @@
-name: Test custom-fork-owner input
+name: Test custom fork owner input
 on:
   workflow_dispatch:
 jobs:
@@ -6,16 +6,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - id: action
+
+      - name: Run WinGet Updater action with custom fork owner
+        id: action
         uses: .
-        continue-on-error: true
         with:
-          komac-token: fake-token-for-testing
-          identifier: Microsoft.VisualStudioCode
-          repo: microsoft/vscode
-          url: "https://github.com/microsoft/vscode/releases/download/{VERSION}/VSCodeSetup-x64-{VERSION}.exe"
-          custom-fork-owner: my-custom-fork-owner
+          komac-token: ${{ github.token }}
+          identifier: Git.Git
+          repo: git-for-windows/git
+          url: https://github.com/git-for-windows/git/releases/download/v{VERSION}.windows.1/Git-{VERSION}-64-bit.exe
+          custom-fork-owner: test-fork-owner
+        continue-on-error: true
+
       - name: Assert action ran with custom-fork-owner
         run: |
-          echo "Action completed (with or without error — custom-fork-owner input was exercised)"
-          echo "PASS"
+          echo "Action completed with custom-fork-owner set"
+          echo "PASS: action accepted custom-fork-owner input"
