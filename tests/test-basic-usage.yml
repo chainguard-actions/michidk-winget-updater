@@ -1,0 +1,31 @@
+name: Test basic usage - known package
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action with known package
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: Microsoft.VisualStudioCode
+          repo: microsoft/vscode
+          url: "https://update.code.visualstudio.com/{VERSION}/win32-x64-user/stable"
+
+      - name: Assert action ran (package exists check passed)
+        run: |
+          # The action should at minimum pass the package-exists check and
+          # detect the latest release. The Komac step has continue-on-error
+          # so the overall job should not fail due to Komac errors.
+          # We verify the FINAL_URL env var was set by the Compose URL step.
+          echo "FINAL_URL: $FINAL_URL"
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL was not set — Compose URL step did not run"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL is set to: $FINAL_URL"

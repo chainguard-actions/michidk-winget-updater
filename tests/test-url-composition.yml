@@ -1,0 +1,37 @@
+name: Test URL composition with VERSION placeholder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run WinGet Updater action to test URL composition
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-token: ${{ github.token }}
+          identifier: Microsoft.VisualStudioCode
+          repo: microsoft/vscode
+          url: "https://example.com/releases/{VERSION}/installer.exe"
+
+      - name: Assert FINAL_URL contains a version (no literal {VERSION})
+        run: |
+          echo "FINAL_URL: $FINAL_URL"
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL was not set — Compose URL step did not run"
+            exit 1
+          fi
+          # The {VERSION} placeholder should have been replaced with the actual version
+          if echo "$FINAL_URL" | grep -q '{VERSION}'; then
+            echo "FAIL: FINAL_URL still contains literal {VERSION} placeholder"
+            exit 1
+          fi
+          # The URL should still contain the base path
+          if ! echo "$FINAL_URL" | grep -q 'https://example.com/releases/'; then
+            echo "FAIL: FINAL_URL does not contain expected base URL"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL has {VERSION} replaced: $FINAL_URL"

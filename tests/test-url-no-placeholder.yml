@@ -1,0 +1,33 @@
+name: Test URL without VERSION placeholder passes through unchanged
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          komac-version: '2.6.0'
+          komac-token: 'placeholder-token'
+          # Microsoft.PowerShell is a well-known package in winget-pkgs
+          identifier: 'Microsoft.PowerShell'
+          repo: 'PowerShell/PowerShell'
+          # URL without {VERSION} placeholder - should be passed through as-is
+          url: 'https://example.com/download/app-static.exe'
+
+      - name: Assert FINAL_URL equals the static URL (no substitution needed)
+        run: |
+          echo "FINAL_URL: $FINAL_URL"
+          if [ -z "$FINAL_URL" ]; then
+            echo "FAIL: FINAL_URL env var was not set"
+            exit 1
+          fi
+          if [ "$FINAL_URL" != "https://example.com/download/app-static.exe" ]; then
+            echo "FAIL: expected FINAL_URL to be 'https://example.com/download/app-static.exe' but got '$FINAL_URL'"
+            exit 1
+          fi
+          echo "PASS: FINAL_URL correctly passed through without modification"
