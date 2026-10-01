@@ -10,34 +10,21 @@
 
 **Harden Agent Version:** `2`
 
-Action **michidk--winget-updater/v1.1.3** was hardened automatically. 5 finding(s) were identified and resolved across 3 iteration(s).
+Action **michidk--winget-updater/v1.1.3** was hardened automatically. 4 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-The 'Compose URL' run: block in action.yml directly interpolates GitHub Actions expressions inside shell commands (rule a) and uses unquoted shell variable expansions (rule b).
-
-Rule (a) violations — ${{ ... }} expressions embedded directly in the shell script:
-  Line 57: `VERSION=${{ steps.latest_release.outputs.result }}`
-  Line 58: `URL=${{ inputs.url }}`
-  Line 60: `echo "Detected latest Version: ${{ steps.latest_release.outputs.result }}"`
-
-Rule (b) violations — unquoted shell variable expansions of untrusted data:
-  Line 59: `FINAL_URL=$(echo $URL | sed "s/{VERSION}/$VERSION/g")` — both $URL and $VERSION are unquoted, allowing shell metacharacter injection.
+The 'Compose URL' run: block directly interpolates GitHub Actions expressions into shell commands, violating sub-rule (a): `VERSION=${{ steps.latest_release.outputs.result }}` and `URL=${{ inputs.url }}` are substituted directly into the shell script before the shell ever sees them, allowing an attacker-controlled value to inject arbitrary shell commands. Additionally, sub-rule (b) is violated: the resulting shell variables `$URL` and `$VERSION` are used unquoted (e.g. `echo $URL | sed ...` and `s/{VERSION}/$VERSION/g`), allowing shell metacharacter injection. All expressions must be passed via env: vars and all shell expansions must be double-quoted.
 
 Locations:
 
 - `action.yml:57`
-- `action.yml:58`
-- `action.yml:59`
-- `action.yml:60`
 
 ### github-env-injection (severity: high)
 
-The 'Compose URL' run: block writes FINAL_URL to $GITHUB_ENV without sanitization. FINAL_URL is derived from ${{ inputs.url }} (caller-controlled) and ${{ steps.latest_release.outputs.result }} (step output), both of which are untrusted. No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before the write. An attacker-controlled newline in the URL value could inject arbitrary environment variables.
-
-Offending line: `echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV`
+The 'Compose URL' run: block writes `FINAL_URL` to `$GITHUB_ENV` without sanitization. `FINAL_URL` is derived from `${{ inputs.url }}` (user-controlled) and `${{ steps.latest_release.outputs.result }}` (step output, also untrusted). The line `echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV` does not apply `printf '%s' ... | tr -d '\n\r'` before the write, allowing newline injection that can set arbitrary environment variables for subsequent steps.
 
 Locations:
 
@@ -45,37 +32,13 @@ Locations:
 
 ### unpinned-uses (severity: high)
 
-Multiple `uses:` references are pinned to mutable tags or branch names instead of immutable 40-character commit SHAs, making the action vulnerable to supply-chain attacks if the referenced tag is moved or overwritten.
-
-In action.yml:
-  - `uses: actions/github-script@v7` (appears twice, steps 'Check if Package Exists' and 'Detect Latest Release')
-  - `uses: michidk/run-komac@v2` (step 'Run Komac')
-
-In .github/workflows/pr-stale.yml:
-  - `uses: actions/stale@v9`
-
-In .github/workflows/pr-title.yml:
-  - `uses: aslafy-z/conventional-pr-title-action@v3`
-
-In .github/workflows/versioning.yml:
-  - `uses: Actions-R-Us/actions-tagger@latest`
+Three `uses:` references in action.yml are pinned to mutable tags rather than immutable 40-character SHA digests, making the action vulnerable to supply-chain attacks if those tags are moved: (1) `actions/github-script@v7` (Check if Package Exists step), (2) `actions/github-script@v7` (Detect Latest Release step), (3) `michidk/run-komac@v2` (Run Komac step). Each should be pinned to a full commit SHA, e.g. `actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7`.
 
 Locations:
 
-- `action.yml:31`
+- `action.yml:33`
 - `action.yml:44`
-- `action.yml:68`
-- `.github/workflows/pr-stale.yml:16`
-- `.github/workflows/pr-title.yml:14`
-- `.github/workflows/versioning.yml:9`
-
-### missing-permissions (severity: medium)
-
-The workflow file versioning.yml has no top-level `permissions:` key and its only job ('actions-tagger') also has no job-level `permissions:` key. Without explicit permissions, the workflow inherits the default repository token permissions, which may be overly broad (write access to contents, etc.).
-
-Locations:
-
-- `.github/workflows/versioning.yml:1`
+- `action.yml:67`
 
 ### static-inline-injection (severity: high)
 
@@ -89,19 +52,15 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection, unpinned-uses, missing-permissions, static-inline-injection
+**Fixes applied:** unpinned-uses, script-injection, static-inline-injection, github-env-injection
 
 **Notes:**
 
-Fixed all 5 findings across action.yml and the 3 workflow files:
-
-1. script-injection + static-inline-injection (action.yml): Moved ${{ steps.latest_release.outputs.result }} and ${{ inputs.url }} from the 'Compose URL' run: block into the step's env: map as VERSION and URL. Shell script now uses properly quoted "$URL" and "$VERSION" variables.
-
-2. github-env-injection (action.yml): Added `printf '%s' "$FINAL_URL" | tr -d '\n\r'` sanitization before writing to $GITHUB_ENV to prevent newline injection.
-
-3. unpinned-uses: Pinned all 5 mutable action references to full 40-char commit SHAs with tag comments preserved: actions/github-script@v7 (×2), michidk/run-komac@v2, actions/stale@v9, aslafy-z/conventional-pr-title-action@v3, Actions-R-Us/actions-tagger@latest.
-
-4. missing-permissions (versioning.yml): Added `permissions: contents: write` at top-level and job-level (required for actions-tagger to create/update tags).
+Fixed all four findings in action.yml:
+1. Pinned actions/github-script@v7 to SHA f28e40c7f34bde8b3046d885e986cb6290c5673b (both occurrences at lines 33 and 44).
+2. Pinned michidk/run-komac@v2 to SHA b5627eaf2c8b839aa3be7580be1e2e5b72c13f91 (line 67).
+3. Fixed script-injection and static-inline-injection in 'Compose URL' step: moved ${{ steps.latest_release.outputs.result }} and ${{ inputs.url }} into an env: block as VERSION and URL respectively; all shell variable expansions are now double-quoted.
+4. Fixed github-env-injection: sanitized FINAL_URL with `printf '%s' "$FINAL_URL" | tr -d '\n\r'` before writing to $GITHUB_ENV; also quoted $GITHUB_ENV reference.
 
 ### Iteration 2
 
@@ -109,16 +68,8 @@ Fixed all 5 findings across action.yml and the 3 workflow files:
 
 **Notes:**
 
-Fixed two script injection vulnerabilities in action.yml:
-1. 'Check if Package Exists' step (line 34): Moved `${{ inputs.identifier }}` from inline JavaScript string `const pkgid = "${{ inputs.identifier }}";` into an `env:` block as `INPUT_IDENTIFIER`, then accessed it safely via `process.env.INPUT_IDENTIFIER` in the script.
-2. 'Detect Latest Release' step (line 51): Moved `${{ inputs.repo }}` from inline JavaScript string `'${{ inputs.repo }}'.split('/')` into an `env:` block as `INPUT_REPO`, then accessed it safely via `process.env.INPUT_REPO.split('/')` in the script.
-Both fixes prevent attacker-controlled inputs from being interpolated directly into JavaScript code execution contexts.
-
-### Iteration 3
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed the script injection vulnerability in the 'Compose URL' step (action.yml line 68). Replaced the unsafe `sed "s/{VERSION}/$VERSION/g"` command — where $VERSION was expanded unquoted inside a double-quoted sed argument, allowing shell metacharacters to break out — with bash's built-in parameter expansion `"${URL//\{VERSION\}/$VERSION}"`. Bash parameter expansion treats the replacement string literally without shell metacharacter interpretation, eliminating the injection vector while preserving the same URL template substitution functionality.
+Fixed all three script-injection findings in hardened/action/action.yml:
+1. 'Check if Package Exists' step: Moved ${{ inputs.identifier }} from inline JavaScript string literal to env block as INPUT_IDENTIFIER, accessed via process.env.INPUT_IDENTIFIER in the script.
+2. 'Detect Latest Release' step: Moved ${{ inputs.repo }} from inline JavaScript string literal to env block as INPUT_REPO, accessed via process.env.INPUT_REPO.split('/') in the script.
+3. 'Compose URL' step: Fixed unquoted $VERSION in sed expression by breaking the double-quoted string around the variable: sed "s/{VERSION}/""$VERSION""/g" — this ensures the shell treats $VERSION as a quoted word, preventing metacharacter injection.
 
