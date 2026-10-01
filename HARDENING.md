@@ -10,47 +10,44 @@
 
 **Harden Agent Version:** `2`
 
-Action **michidk--winget-updater/v1.1.7** was hardened automatically. 6 finding(s) were identified and resolved across 1 iteration(s).
+Action **michidk--winget-updater/v1.1.7** was hardened automatically. 5 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
-### script-injection (severity: high)
+### unpinned-uses (severity: high)
 
-The 'Compose URL' run: block in action.yml directly interpolates GitHub Actions expressions into shell commands, violating rule (a). Specifically: `VERSION=${{ inputs.version || steps.latest_release.outputs.result }}` and `URL=${{ inputs.url }}` are expanded by the YAML template engine before the shell ever sees them, allowing an attacker-controlled value to inject arbitrary shell commands. These must be moved to an `env:` block and the shell variables must be double-quoted.
+Three `uses:` references in action.yml are pinned to mutable tags instead of full 40-character commit SHAs, making the action vulnerable to supply-chain attacks if those tags are moved:
+- `actions/github-script@v8` (step: Check if Package Exists)
+- `actions/github-script@v8` (step: Detect Latest Release)
+- `michidk/run-komac@v2` (step: Run Komac)
 
 Locations:
 
-- `action.yml:72`
+- `action.yml:38`
+- `action.yml:53`
+- `action.yml:82`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'Compose URL' run: block directly interpolates GitHub Actions expressions into shell commands without going through an env: variable. `${{ inputs.version || steps.latest_release.outputs.result }}` and `${{ inputs.url }}` are substituted by the Actions template engine before the shell parses the script, allowing an attacker-controlled value to inject arbitrary shell commands. Offending lines:
+  `VERSION=${{ inputs.version || steps.latest_release.outputs.result }}`
+  `URL=${{ inputs.url }}`
+
+Locations:
+
+- `action.yml:76`
+- `action.yml:77`
 
 ### github-env-injection (severity: high)
 
-The 'Compose URL' run: block writes values derived from untrusted inputs (`inputs.version`, `inputs.url`, `steps.latest_release.outputs.result`) to $GITHUB_ENV without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). The lines `echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV` and `echo "VERSION=$VERSION" >> $GITHUB_ENV` allow newline injection that can override subsequent environment variables in the same workflow run.
+The 'Compose URL' run: block writes values derived from untrusted inputs (`${{ inputs.url }}` → `URL`/`FINAL_URL`, and `${{ inputs.version || steps.latest_release.outputs.result }}` → `VERSION`) to `$GITHUB_ENV` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). A newline injected into these values can define arbitrary environment variables for subsequent steps.
+  `echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV`
+  `echo "VERSION=$VERSION" >> $GITHUB_ENV`
 
 Locations:
 
-- `action.yml:75`
-- `action.yml:76`
-
-### unpinned-uses (severity: high)
-
-Multiple `uses:` references are pinned to mutable tags or version strings instead of full 40-character commit SHAs, making the action vulnerable to supply-chain attacks if the referenced tag is moved or overwritten. Failing references in action.yml: `actions/github-script@v8` (two steps), `michidk/run-komac@v2`. Failing references in workflow files: `actions/stale@v10` (pr-stale.yml), `amannn/action-semantic-pull-request@v6.1.1` (pr-title.yml), `Actions-R-Us/actions-tagger@latest` (versioning.yml — especially dangerous as `@latest` is always mutable).
-
-Locations:
-
-- `action.yml:36`
-- `action.yml:51`
-- `action.yml:83`
-- `.github/workflows/pr-stale.yml:16`
-- `.github/workflows/pr-title.yml:14`
-- `.github/workflows/versioning.yml:11`
-
-### missing-permissions (severity: medium)
-
-The workflow file versioning.yml has no top-level `permissions:` key and its only job (`actions-tagger`) also has no job-level `permissions:` key. Without explicit permissions, the job inherits the default repository permissions (which may include broad write access), violating the principle of least privilege.
-
-Locations:
-
-- `.github/workflows/versioning.yml:1`
+- `action.yml:78`
+- `action.yml:79`
 
 ### static-inline-injection (severity: high)
 
@@ -72,22 +69,23 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection, unpinned-uses, missing-permissions, static-inline-injection
+**Fixes applied:** unpinned-uses, script-injection, github-env-injection, static-inline-injection
 
 **Notes:**
 
-Fixed all findings in action.yml and the three workflow files:
+Fixed all findings in action.yml:
+1. Pinned actions/github-script@v8 to full SHA ed597411d8f924073f98dfc5c65a23a2325f34cd (both occurrences).
+2. Pinned michidk/run-komac@v2 to full SHA b5627eaf2c8b839aa3be7580be1e2e5b72c13f91.
+3. Moved ${{ inputs.version || steps.latest_release.outputs.result }} and ${{ inputs.url }} from the 'Compose URL' run: block into an env: map as INPUT_VERSION and INPUT_URL, eliminating shell injection risk.
+4. Sanitized both values with printf '%s' ... | tr -d '\n\r' before writing to $GITHUB_ENV, preventing newline injection attacks.
 
-1. script-injection / static-inline-injection: Moved `${{ inputs.version || steps.latest_release.outputs.result }}` and `${{ inputs.url }}` from the 'Compose URL' run: block into an env: block (as INPUT_VERSION and INPUT_URL), then referenced them as plain shell variables.
+### Iteration 2
 
-2. github-env-injection: Added `printf '%s' "$VAR" | tr -d '\n\r'` sanitization for all values written to $GITHUB_ENV (FINAL_URL and VERSION), and quoted $GITHUB_ENV reference.
+**Fixes applied:** script-injection
 
-3. unpinned-uses: Pinned all mutable action references to full 40-character commit SHAs:
-   - actions/github-script@v8 → @ed597411d8f924073f98dfc5c65a23a2325f34cd (action.yml, 2 occurrences)
-   - michidk/run-komac@v2 → @9b27eadc6e9235c252444a437d246c139da2f57f (action.yml)
-   - actions/stale@v10 → @1e223db275d687790206a7acac4d1a11bd6fe629 (pr-stale.yml)
-   - amannn/action-semantic-pull-request@v6.1.1 → @48f256284bd46cdaab1048c3721360e808335d50 (pr-title.yml)
-   - Actions-R-Us/actions-tagger@latest → @330ddfac760021349fef7ff62b372f2f691c20fb (versioning.yml)
+**Notes:**
 
-4. missing-permissions: Added `permissions: {}` at top level and `permissions: contents: write` at job level in versioning.yml (contents:write needed for tag creation).
+Fixed two script injection vulnerabilities in action.yml:
+1. 'Check if Package Exists in winget-pkgs Repository' step: Moved `${{ inputs.identifier }}` to an `env:` block as `INPUT_IDENTIFIER` and updated the JavaScript to use `process.env.INPUT_IDENTIFIER` instead of direct string interpolation.
+2. 'Detect Latest Release' step: Moved `${{ inputs.repo }}`, `${{ github.api_url }}`, and `${{ inputs.ghes-token }}` to an `env:` block as `INPUT_REPO`, `INPUT_API_URL`, and `INPUT_GHES_TOKEN` respectively, and updated the JavaScript to use `process.env.*` references instead of direct string interpolation. This prevents attacker-controlled input values from injecting arbitrary JavaScript into the github-script execution context.
 

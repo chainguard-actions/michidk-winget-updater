@@ -50,10 +50,12 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Package Exists in winget-pkgs Repository
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      uses: chainguard-actions/actions-github-script@3b0d5713a5687799c90a099fd5b352d9c82d36fe # v8
+      env:
+        INPUT_IDENTIFIER: ${{ inputs.identifier }}
       with:
         script: |
-          const pkgid = "${{ inputs.identifier }}";
+          const pkgid = process.env.INPUT_IDENTIFIER;
           const url = `https://github.com/microsoft/winget-pkgs/tree/master/manifests/${pkgid.charAt(0).toLowerCase()}/${pkgid.replaceAll('.', '/')}`;
           const headers = { method: 'HEAD' };
 
@@ -65,12 +67,16 @@ runs:
           }
     - name: Detect Latest Release
       id: latest_release
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      uses: chainguard-actions/actions-github-script@3b0d5713a5687799c90a099fd5b352d9c82d36fe # v8
+      env:
+        INPUT_REPO: ${{ inputs.repo }}
+        INPUT_API_URL: ${{ github.api_url }}
+        INPUT_GHES_TOKEN: ${{ inputs.ghes-token }}
       with:
         script: |
-          const [owner, repo] = '${{ inputs.repo }}'.split('/');
-          const apiUrl = '${{ github.api_url }}';
-          const ghesToken = '${{ inputs.ghes-token }}'
+          const [owner, repo] = process.env.INPUT_REPO.split('/');
+          const apiUrl = process.env.INPUT_API_URL;
+          const ghesToken = process.env.INPUT_GHES_TOKEN
           try {
             const data = apiUrl !== 'https://api.github.com'
               ? await (async () => {
@@ -104,10 +110,10 @@ runs:
         safe_version=$(printf '%s' "$VERSION" | tr -d '\n\r')
         echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
         echo "VERSION=$safe_version" >> "$GITHUB_ENV"
-        echo "Final URL: $safe_final_url"
-        echo "Version: $safe_version"
+        echo "Final URL: $FINAL_URL"
+        echo "Version: $VERSION"
     - name: Run Komac
-      uses: michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f # v2
+      uses: michidk/run-komac@b5627eaf2c8b839aa3be7580be1e2e5b72c13f91 # v2
       with:
         komac-version: ${{ inputs.komac-version }}
         custom-fork-owner: ${{ inputs.custom-fork-owner }}
