@@ -107,7 +107,7 @@ runs:
         echo "Final URL: $safe_final_url"
         echo "Version: $safe_version"
     - name: Run Komac
-      uses: michidk/run-komac@b5627eaf2c8b839aa3be7580be1e2e5b72c13f91 # v2
+      uses: chainguard-actions/michidk-run-komac@d8cbc1bce0f6f5e871d969d5a09e1ae7f1f3420d # v2
       with:
         komac-version: ${{ inputs.komac-version }}
         custom-fork-owner: ${{ inputs.custom-fork-owner }}
