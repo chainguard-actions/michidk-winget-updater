@@ -45,11 +45,9 @@ runs:
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Package Exists in winget-pkgs Repository
       uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
-      env:
-        INPUT_IDENTIFIER: ${{ inputs.identifier }}
       with:
         script: |
-          const pkgid = process.env.INPUT_IDENTIFIER;
+          const pkgid = "${{ inputs.identifier }}";
           const url = `https://github.com/microsoft/winget-pkgs/tree/master/manifests/${pkgid.charAt(0).toLowerCase()}/${pkgid.replaceAll('.', '/')}`;
           const headers = { method: 'HEAD' };
 
@@ -62,11 +60,9 @@ runs:
     - name: Detect Latest Release
       id: latest_release
       uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
-      env:
-        INPUT_REPO: ${{ inputs.repo }}
       with:
         script: |
-          const [owner, repo] = process.env.INPUT_REPO.split('/');
+          const [owner, repo] = '${{ inputs.repo }}'.split('/');
           try {
             const { data } = await github.rest.repos.getLatestRelease({ owner, repo });
             const tagName = data.tag_name.startsWith('v') ? data.tag_name.substring(1) : data.tag_name;
@@ -79,11 +75,11 @@ runs:
       shell: bash
       env:
         VERSION: ${{ steps.latest_release.outputs.result }}
-        URL: ${{ inputs.url }}
+        INPUT_URL: ${{ inputs.url }}
       run: |
-        FINAL_URL=$(printf '%s' "$URL" | sed "s/{VERSION}/""$VERSION""/g")
-        safe_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
-        echo "FINAL_URL=$safe_url" >> "$GITHUB_ENV"
+        FINAL_URL=$(echo "$INPUT_URL" | sed "s/{VERSION}/$VERSION/g")
+        safe=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
+        echo "FINAL_URL=$safe" >> "$GITHUB_ENV"
         echo "Detected latest Version: $VERSION"
         echo "Final URL: $FINAL_URL"
     - name: Run Komac
