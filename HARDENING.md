@@ -10,61 +10,46 @@
 
 **Harden Agent Version:** `2`
 
-Action **michidk--winget-updater/v1.1.5** was hardened automatically. 5 finding(s) were identified and resolved across 1 iteration(s).
+Action **michidk--winget-updater/v1.1.5** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
-### script-injection (severity: high)
+### unpinned-uses (severity: high)
 
-The 'Compose URL' run: block in action.yml directly interpolates GitHub Actions expressions into shell commands, violating sub-rule (a). `VERSION=${{ steps.latest_release.outputs.result }}` and `URL=${{ inputs.url }}` embed untrusted step-output and input values directly into the shell script before the shell ever sees them, allowing an attacker to inject arbitrary shell commands. Additionally, sub-rule (b) is violated: `$URL` and `$VERSION` are used unquoted in `FINAL_URL=$(echo $URL | sed "s/{VERSION}/$VERSION/g")`, allowing shell metacharacter injection from those values.
+All three `uses:` references in action.yml use mutable tags instead of pinned full 40-character SHA commit digests, making the action vulnerable to supply-chain attacks if the referenced action is compromised or the tag is moved:
+- `actions/github-script@v7` (line 32)
+- `actions/github-script@v7` (line 47)
+- `michidk/run-komac@v2` (line 70)
 
 Locations:
 
-- `action.yml:57`
-- `action.yml:58`
-- `action.yml:59`
+- `action.yml:32`
+- `action.yml:47`
+- `action.yml:70`
+
+### script-injection (severity: high)
+
+The 'Compose URL' run: block directly interpolates GitHub Actions expressions into shell commands (sub-rule a), allowing an attacker to inject arbitrary shell commands via workflow inputs or step outputs:
+- Line 62: `VERSION=${{ steps.latest_release.outputs.result }}` — step output interpolated directly into shell
+- Line 63: `URL=${{ inputs.url }}` — user-controlled input interpolated directly into shell
+- Line 67: `echo "Detected latest Version: ${{ steps.latest_release.outputs.result }}"` — step output interpolated directly into shell
+An attacker controlling `inputs.url` or the release tag name could inject shell metacharacters (`;`, `|`, `$(...)`, etc.) to execute arbitrary commands.
+
+Locations:
+
+- `action.yml:62`
+- `action.yml:63`
+- `action.yml:67`
 
 ### github-env-injection (severity: high)
 
-The 'Compose URL' run: block writes `FINAL_URL` to `$GITHUB_ENV` without sanitization. `FINAL_URL` is derived from `${{ inputs.url }}` (user-controlled input) and `${{ steps.latest_release.outputs.result }}` (step output), both of which are untrusted. No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before the write (`echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV`), allowing a newline-injection attack to set arbitrary environment variables for subsequent steps.
+The 'Compose URL' run: block writes `FINAL_URL` — derived from the untrusted `${{ inputs.url }}` and `${{ steps.latest_release.outputs.result }}` expressions — to `$GITHUB_ENV` without sanitization (no `printf '%s' ... | tr -d '\n\r'` step). An attacker who controls `inputs.url` or the release tag name can inject newlines into the value to set arbitrary environment variables for subsequent steps, potentially overriding sensitive variables like `PATH` or injecting new ones.
+
+Offending line: `echo "FINAL_URL=$FINAL_URL" >> $GITHUB_ENV`
 
 Locations:
 
-- `action.yml:60`
-
-### unpinned-uses (severity: high)
-
-Multiple `uses:` references are pinned to mutable tags or branch names instead of immutable 40-character commit SHAs, making the action vulnerable to supply-chain attacks if those tags are moved or hijacked.
-
-In action.yml:
-- `uses: actions/github-script@v7` (appears twice, lines 33 and 45)
-- `uses: michidk/run-komac@v2` (line 68)
-
-In .github/workflows/pr-stale.yml:
-- `uses: actions/stale@v9` (line 16)
-
-In .github/workflows/pr-title.yml:
-- `uses: aslafy-z/conventional-pr-title-action@v3` (line 14)
-
-In .github/workflows/versioning.yml:
-- `uses: Actions-R-Us/actions-tagger@latest` (line 8) — `@latest` is a mutable branch reference.
-
-Locations:
-
-- `action.yml:33`
-- `action.yml:45`
-- `action.yml:68`
-- `.github/workflows/pr-stale.yml:16`
-- `.github/workflows/pr-title.yml:14`
-- `.github/workflows/versioning.yml:8`
-
-### missing-permissions (severity: medium)
-
-The workflow file versioning.yml has no top-level `permissions:` key and its only job (`actions-tagger`) also has no job-level `permissions:` key. Without explicit permissions, the workflow runs with the default repository token permissions, which may be overly broad (e.g., write access to contents). Explicit minimal permissions should be declared.
-
-Locations:
-
-- `.github/workflows/versioning.yml:1`
+- `action.yml:65`
 
 ### static-inline-injection (severity: high)
 
@@ -78,19 +63,13 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection, unpinned-uses, missing-permissions, static-inline-injection
+**Fixes applied:** unpinned-uses, script-injection, github-env-injection, static-inline-injection
 
 **Notes:**
 
-Fixed all 5 findings:
-
-1. **script-injection**: Moved `${{ steps.latest_release.outputs.result }}` and `${{ inputs.url }}` from the `run:` block into the step's `env:` block as `VERSION` and `URL`. Both are now properly double-quoted in shell (`"$URL"`, `"$VERSION"`).
-
-2. **github-env-injection**: Added `printf '%s' "$FINAL_URL" | tr -d '\n\r'` sanitization before writing to `$GITHUB_ENV`, preventing newline-injection attacks.
-
-3. **unpinned-uses**: Pinned all 6 action references to full 40-char commit SHAs: `actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b` (×2), `michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f`, `actions/stale@5bef64f19d7facfb25b37b414482c7164d639639`, `aslafy-z/conventional-pr-title-action@2ce59b07f86bd51b521dd088f0acfb0d7fdac55e`, `Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb`.
-
-4. **missing-permissions**: Added `permissions: contents: write` at both top-level and job-level in `versioning.yml` (the actions-tagger needs write access to push tags).
-
-5. **static-inline-injection**: Resolved as part of the script-injection fix — `${{ inputs.url }}` moved to `env:` block.
+Fixed all four findings in action.yml:
+1. Pinned actions/github-script@v7 to full SHA f28e40c7f34bde8b3046d885e986cb6290c5673b (both occurrences)
+2. Pinned michidk/run-komac@v2 to full SHA b5627eaf2c8b839aa3be7580be1e2e5b72c13f91
+3. Moved ${{ steps.latest_release.outputs.result }} and ${{ inputs.url }} expressions from the 'Compose URL' run: block into the step's env: block (as LATEST_VERSION and INPUT_URL), eliminating script injection risk
+4. Added printf '%s' ... | tr -d '\n\r' sanitization for all values before writing to $GITHUB_ENV, preventing newline injection attacks
 

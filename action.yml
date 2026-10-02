@@ -44,7 +44,7 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Package Exists in winget-pkgs Repository
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
       with:
         script: |
           const pkgid = "${{ inputs.identifier }}";
@@ -59,7 +59,7 @@ runs:
           }
     - name: Detect Latest Release
       id: latest_release
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
       with:
         script: |
           const [owner, repo] = '${{ inputs.repo }}'.split('/');
@@ -74,16 +74,18 @@ runs:
     - name: Compose URL
       shell: bash
       env:
-        VERSION: ${{ steps.latest_release.outputs.result }}
-        URL: ${{ inputs.url }}
+        LATEST_VERSION: ${{ steps.latest_release.outputs.result }}
+        INPUT_URL: ${{ inputs.url }}
       run: |
+        VERSION=$(printf '%s' "$LATEST_VERSION" | tr -d '\n\r')
+        URL=$(printf '%s' "$INPUT_URL" | tr -d '\n\r')
         FINAL_URL=$(echo "$URL" | sed "s/{VERSION}/$VERSION/g")
-        safe=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
-        echo "FINAL_URL=$safe" >> "$GITHUB_ENV"
+        safe_final_url=$(printf '%s' "$FINAL_URL" | tr -d '\n\r')
+        echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
         echo "Detected latest Version: $VERSION"
-        echo "Final URL: $safe"
+        echo "Final URL: $FINAL_URL"
     - name: Run Komac
-      uses: michidk/run-komac@9b27eadc6e9235c252444a437d246c139da2f57f # v2
+      uses: michidk/run-komac@b5627eaf2c8b839aa3be7580be1e2e5b72c13f91 # v2
       continue-on-error: true
       with:
         komac-version: ${{ inputs.komac-version }}
