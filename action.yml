@@ -51,11 +51,9 @@ runs:
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Package Exists in winget-pkgs Repository
       uses: chainguard-actions/actions-github-script@3b0d5713a5687799c90a099fd5b352d9c82d36fe # v8
-      env:
-        INPUT_IDENTIFIER: ${{ inputs.identifier }}
       with:
         script: |
-          const pkgid = process.env.INPUT_IDENTIFIER;
+          const pkgid = "${{ inputs.identifier }}";
           const url = `https://github.com/microsoft/winget-pkgs/tree/master/manifests/${pkgid.charAt(0).toLowerCase()}/${pkgid.replaceAll('.', '/')}`;
           const headers = { method: 'HEAD' };
 
@@ -68,15 +66,11 @@ runs:
     - name: Detect Latest Release
       id: latest_release
       uses: chainguard-actions/actions-github-script@3b0d5713a5687799c90a099fd5b352d9c82d36fe # v8
-      env:
-        INPUT_REPO: ${{ inputs.repo }}
-        INPUT_API_URL: ${{ github.api_url }}
-        INPUT_GHES_TOKEN: ${{ inputs.ghes-token }}
       with:
         script: |
-          const [owner, repo] = process.env.INPUT_REPO.split('/');
-          const apiUrl = process.env.INPUT_API_URL;
-          const ghesToken = process.env.INPUT_GHES_TOKEN
+          const [owner, repo] = '${{ inputs.repo }}'.split('/');
+          const apiUrl = '${{ github.api_url }}';
+          const ghesToken = '${{ inputs.ghes-token }}'
           try {
             const data = apiUrl !== 'https://api.github.com'
               ? await (async () => {
@@ -110,8 +104,8 @@ runs:
         safe_version=$(printf '%s' "$VERSION" | tr -d '\n\r')
         echo "FINAL_URL=$safe_final_url" >> "$GITHUB_ENV"
         echo "VERSION=$safe_version" >> "$GITHUB_ENV"
-        echo "Final URL: $FINAL_URL"
-        echo "Version: $VERSION"
+        echo "Final URL: $safe_final_url"
+        echo "Version: $safe_version"
     - name: Run Komac
       uses: michidk/run-komac@b5627eaf2c8b839aa3be7580be1e2e5b72c13f91 # v2
       with:
