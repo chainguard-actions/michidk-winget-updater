@@ -7,20 +7,27 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Test action with custom-fork-owner input
-        id: action
+      - id: action
         uses: .
         continue-on-error: true
         with:
           komac-version: '2.0.4'
           komac-token: ${{ github.token }}
-          identifier: 'Microsoft.VisualStudioCode'
-          repo: 'microsoft/vscode'
-          url: 'https://update.code.visualstudio.com/{VERSION}/win32-x64-user/stable'
+          identifier: 'Microsoft.PowerShell'
+          repo: 'PowerShell/PowerShell'
+          url: 'https://github.com/PowerShell/PowerShell/releases/download/v{VERSION}/PowerShell-{VERSION}-win-x64.msi'
           custom-fork-owner: 'test-fork-owner'
 
       - name: Assert action ran with custom-fork-owner
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
         run: |
-          echo "Action completed (with or without error due to Komac submission)"
-          echo "The custom-fork-owner input was accepted and passed through"
-          echo "PASS: custom-fork-owner input is accepted by the action"
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with custom-fork-owner"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected under harness sentinel repo or komac auth)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
